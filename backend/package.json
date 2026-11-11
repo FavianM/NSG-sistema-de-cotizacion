@@ -1,0 +1,49 @@
+{
+  "name": "sistema-cotizacion-nsg-backend",
+  "version": "1.0.0",
+  "description": "Backend del Sistema de Cotización Automatizada para NSG Latinoamerica E.I.R.L.",
+  "main": "src/servidor.js",
+  "scripts": {
+    "start": "node src/servidor.js",
+    "dev": "nodemon src/servidor.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "migrar:finanzas:fase1": "node scripts/migrar-finanzas-fase1.js",
+    "test:compatibilidad-imposible": "node scripts/test-compatibilidad-imposible.js"
+  },
+  "keywords": [
+    "cotizacion",
+    "hardware",
+    "nsg"
+  ],
+  "author": "NSG Latinoamerica E.I.R.L.",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@neondatabase/serverless": "^1.1.0",
+    "@react-pdf/renderer": "^4.4.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "express-rate-limit": "^6.7.0",
+    "helmet": "^7.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "multer": "^2.1.1",
+    "node-cache": "^5.1.2",
+    "nodemailer": "^6.10.1",
+    "pdfkit": "^0.13.0",
+    "pg": "^8.11.0",
+    "qrcode": "^1.5.4",
+    "uuid": "^9.0.0",
+    "validator": "^13.9.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "fast-check": "^3.10.0",
+    "jest": "^29.5.0",
+    "nodemon": "^3.0.1",
+    "supertest": "^6.3.3"
+  }
+}

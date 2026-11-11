@@ -1,0 +1,2 @@
+# Carpeta para middleware
+# Los middleware procesan las peticiones antes de llegar a los controladores

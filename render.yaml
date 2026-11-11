@@ -1,0 +1,190 @@
+# =============================================================================
+# Blueprint de Render — NSG Cotizador (backend API)
+# =============================================================================
+# Uso: Render Dashboard > New > Blueprint > conectar el repo y usar este archivo.
+#
+# ESTE ARCHIVO ES LA FUENTE DE VERDAD DEL SERVICIO. Antes de desplegar, revisa
+# los 3 puntos marcados como "AJUSTAR" (region, plan, NODE_VERSION) contra el
+# servicio actual en la cuenta vieja: la region NO se puede cambiar despues
+# de crear el servicio.
+#
+# Migracion entre cuentas: Render NO permite transferir servicios entre
+# workspaces (ver documentacion oficial: render.com/docs/faq, seccion
+# "Can I transfer existing services from one workspace to another?").
+# La estrategia es recrear el servicio con este Blueprint y despues re-apuntar
+# el CNAME del dominio (api.nsglatinoamerica.pe) en el DNS de Ninja Hosting.
+# Ver la seccion "Despliegue en Render" del README.
+# -----------------------------------------------------------------------------
+
+services:
+  - type: web
+    # NOMBRE: los subdominios *.onrender.com son globalmente unicos. Si el
+    # servicio viejo "nsg-cotizador-api" sigue vivo en la cuenta anterior, este
+    # nombre no estara disponible: Render asignara uno con sufijo. Anotar el
+    # hostname exacto que Render muestre, porque es el valor del CNAME en el
+    # cutover de DNS (seccion "Cutover de DNS" de la guia).
+    name: nsg-cotizador-api
+    runtime: node
+    repo: https://github.com/FavianM/NSG-sistema-de-cotizacion
+    branch: main
+    rootDir: backend
+    plan: 0.5c-512mb            # AJUSTAR: plan de pago. NO usar "free": la instancia
+                                # free se duerme a los 15 min, se hiberna al fallar
+                                # el arranque y no sostiene el proceso de forma estable.
+    region: oregon              # AJUSTAR: la region NO se puede cambiar despues
+                                # de crear el servicio. "oregon" es la region por
+                                # defecto de Render; no hay region en Sudamerica.
+    # Build reproducible: npm ci instala exactamente lo que fija package-lock.json
+    # (lock verificado sincronizado con package.json). Un "npm install" podria
+    # resolver versiones nuevas en cada build y cambiar el comportamiento sin
+    # que cambie el codigo.
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    # Health check de proceso. /health NO consulta la base de datos: devuelve el
+    # estado cacheado. Motivo: Render corta el health check a los 5 segundos y
+    # Neon escala a cero a los 5 min, asi que un SELECT 1 en el camino critico
+    # puede exceder el timeout y provocar reinicios ciclicos de la instancia.
+    # El estado real de la base esta en /health/ready (503 si no responde).
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    # El dominio personalizado se agrega DESPUES del deploy inicial, desde el
+    # dashboard (Settings > Custom Domains), una vez cambiado el CNAME en el
+    # DNS de Ninja Hosting. Ver seccion "Cutover de DNS" de la guia.
+    #
+    # domains:
+    #   - api.nsglatinoamerica.pe
+
+    envVars:
+      # ── Runtime ──────────────────────────────────────────────────────────
+      - key: NODE_VERSION
+        value: 24.21.0          # AJUSTAR si el servicio actual usa otra version
+      - key: NODE_ENV
+        value: production        # Activa el driver @neondatabase/serverless (HTTPS/443)
+
+      # ── Servidor / CORS ──────────────────────────────────────────────────
+      - key: FRONTEND_URL
+        value: https://cotizador.nsglatinoamerica.pe
+      # PORT lo define Render automaticamente; no declararlo.
+      # Saltos de proxy confiables para resolver la IP real del cliente.
+      # Render sirve el servicio detras de Cloudflare y de su load balancer, y
+      # encadena X-Forwarded-For como:
+      #   <lo que escribio el cliente>, <cliente real>, <cloudflare>, <render>
+      # 3 = confiar en los ultimos 3 saltos. Descarta las entradas falsificadas
+      # por el cliente y resuelve la IP real. Con 2 se obtiene la IP de
+      # Cloudflare (compartida por todos) y con "true" el cliente elige su IP,
+      # con lo que el rate limit se puede evadir.
+      # Sin esto, express-rate-limit mete a TODOS los usuarios en un mismo
+      # bucket (10 req / 15 min en /api/auth) y bloquea el login.
+      - key: TRUST_PROXY_HOPS
+        value: "3"
+
+      # ── Neon PostgreSQL (externo a Render: no se migra, solo credenciales) ─
+      # DB_HOST es el host DIRECTO. El driver de produccion lo transforma solo
+      # al endpoint "-pooler" (ver src/configuracion/baseDatos.js), que es el
+      # que corresponde: el pooler sostiene conexiones HTTPS/443 y evita el
+      # limite de conexiones de Neon.
+      #
+      # Host, base y usuario se piden en el dashboard (sync: false) para que el
+      # repositorio no exponga ni siquiera los identificadores del proyecto Neon.
+      # Solo se deja fijo DB_PORT, que es un valor por defecto estandar.
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      # Solo aplica si NODE_ENV dejara de ser "production" (driver pg por TCP).
+      # En produccion el driver serverless usa sslmode=require siempre.
+      - key: DB_SSL
+        value: "true"
+      - key: DB_PASSWORD
+        sync: false               # SECRETO: copiar el valor EXACTO del servicio actual
+
+      # ── Seguridad (OBLIGATORIOS en produccion: el server aborta sin ellos) ─
+      - key: JWT_SECRET
+        sync: false               # SECRETO: minimo 32 chars. DEBE ser IDENTICO al actual
+      - key: ENCRYPTION_KEY
+        sync: false               # SECRETO: 64 hex. DEBE ser IDENTICA al actual
+      - key: TURNSTILE_SECRET_KEY
+        sync: false               # SECRETO: mismo valor que en el servicio actual
+
+      # ── APIs externas (opcionales: sin ellas el sistema arranca igual) ────
+      - key: APIS_NET_TOKEN
+        sync: false               # Tipo de cambio automatico
+      - key: DECOLECTA_API_TOKEN
+        sync: false               # Consulta de DNI
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: NVIDIA_BASE_URL
+        sync: false
+      - key: NVIDIA_MODEL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
+      - key: IA_MODO_ACTIVO
+        sync: false               # nvidia | gemini
+
+      # ── Correo SMTP (opcional) ───────────────────────────────────────────
+      # El puerto 587 esta permitido en planes de pago de Render (en el plan
+      # free, Render bloquea los puertos 25/465/587 y el envio falla).
+      - key: SMTP_HOST
+        sync: false
+      # SMTP_HOST_IP: dejar VACIO en Render. Es un workaround para el DNS de
+      # Ninja Hosting (fijar la IPv4 del servidor de correo). En Render el
+      # servidor resuelve DNS bien y, si se fija la IP, se rompe el TLS por
+      # mismatch de nombre (el servicio hace fallback de IPv4 automaticamente
+      # cuando detecta un error de DNS/timeout).
+      - key: SMTP_HOST_IP
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+      # ── Icecat (opcional) ────────────────────────────────────────────────
+      - key: ICECAT_API_TOKEN
+        sync: false
+      - key: ICECAT_CONTENT_TOKEN
+        sync: false
+      - key: ICECAT_SHOPNAME
+        sync: false
+      - key: ICECAT_APP_KEY
+        sync: false
+      - key: ICECAT_LANG
+        sync: false
+
+      # ── Otros ────────────────────────────────────────────────────────────
+      - key: WHATSAPP_NUMERO_ASESOR
+        sync: false
+
+      # ── Enriquecimiento de catalogo (opcional) ────────────────────────────
+      # Si no se declaran, el arranque usa los valores por defecto del codigo
+      # y la cola de enriquecimiento sigue funcionando.
+      - key: ENRICHMENT_PROVIDER_PRIORITY
+        sync: false
+      - key: ENRICHMENT_ENABLE_NVIDIA
+        sync: false
+      - key: ENRICHMENT_ENABLE_GEMINI
+        sync: false
+      - key: ENRICHMENT_NVIDIA_MODEL
+        sync: false
+      - key: ENRICHMENT_GEMINI_MODEL
+        sync: false
+      - key: NVIDIA_CLASSIFIER_MODEL
+        sync: false
+      - key: NVIDIA_EMBEDDING_MODEL
+        sync: false
+      - key: NVIDIA_RERANKER_MODEL
+        sync: false
+      - key: DECOLECTA_DNI_URL
+        sync: false

@@ -1,0 +1,50 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno: contienen secretos (JWT_SECRET, ENCRYPTION_KEY, DB_PASSWORD).
+# NUNCA commitear. Los archivos .env.example si se versionan como referencia.
+.env
+.env.*
+!.env.example
+
+# Dumps con datos reales de usuarios (DNI, correos, telefonos, cotizaciones)
+base-datos/schema-backup-*.sql
+base-datos/*.dump
+base-datos/respaldos/
+
+# Catalogo de productos pesado (se carga via importacion CSV en el panel admin)
+backend/assets/DCW_*.csv
+
+# Paquetes y artefactos de despliegue
+*.zip
+*.rar
+*.tar
+*.tar.gz
+*.gz
+
+# Build
+dist/
+dist-ssr/
+build/
+.vite/
+.output/
+
+# Archivos subidos en runtime (imagenes de productos)
+backend/uploads/
+
+# Logs y temporales
+*.log
+logs/
+tmp/
+temp/
+coverage/
+.nyc_output/
+
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
