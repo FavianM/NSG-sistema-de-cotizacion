@@ -28,9 +28,12 @@ services:
     repo: https://github.com/FavianM/NSG-sistema-de-cotizacion
     branch: main
     rootDir: backend
-    plan: 0.5c-512mb            # AJUSTAR: plan de pago. NO usar "free": la instancia
-                                # free se duerme a los 15 min, se hiberna al fallar
-                                # el arranque y no sostiene el proceso de forma estable.
+    plan: free               # Capa gratuita: la instancia duerme a los 15 min de inactividad
+                            # y despierta en ~1 min en la primera peticion. Aceptable
+                            # para desarrollo/temporales; produccion real client-facing
+                            # conviene cambiar a un plan pago (0.5c-512mb) mas adelante.
+                            # Nota: produccion con clientes despiertos tiene un costo
+                            # adicional por cold start (~1 min) tras cada pausa.
     region: oregon              # AJUSTAR: la region NO se puede cambiar despues
                                 # de crear el servicio. "oregon" es la region por
                                 # defecto de Render; no hay region en Sudamerica.
